@@ -557,6 +557,21 @@ local function parse_ast2type(ast, package, name)
 end
 
 
+local function export_server_to_client_index(class, package)
+  if not class or #class == 0 then return end
+  local class_name = _gen_protocol_classname(package)
+  local info = "--This File Is Auto Create Do Not Modify\n"
+  info = info .. "ServerToClientTag = {\n"
+  for i,v in ipairs(class.classes) do
+    local name = v.name
+    local value = v.value
+    info = info .. "\t" .. name .. "= " .. value.tag .. ",\n"
+  end
+  info = info .. "}\n"
+  return info
+end
+
+
 local function parse_ast2protocol(ast, package)
   package = package or ""
   local protocol_class = gen_protocol_class(ast)
@@ -585,7 +600,12 @@ local function parse_ast2all(ast, package, name)
   parse_type(type_class, stream, package)
   parse_protocol(protocol_class, stream, package)
 
-  return stream:dump()  
+  local namespace = _gen_sprototype_namespace(package)
+  local tindexinfo = nil
+  if string.match(namespace, "ServerToClient") then
+    tindexinfo = export_server_to_client_index(protocol_class, package)
+  end
+  return stream:dump(), tindexinfo
 end
 
 
@@ -599,8 +619,11 @@ local function main(trunk, build, param)
   local dir = param.dircetory or ""
 
   if outfile then
-    local data = parse_ast2all(build, package, table.concat(param.sproto_file, " "))
+    local data, indexinfo = parse_ast2all(build, package, table.concat(param.sproto_file, " "))
     util.write_file(dir..outfile, data, "w")
+    if indexinfo ~= nil then
+      util.write_file(dir.."ServerToClientTag.lua", indexinfo, "w")
+    end
   else
     -- dump sprototype
     for i,v in ipairs(trunk) do
